@@ -24,6 +24,29 @@ app.get("/applications",(req,res) => {
 });
 
 app.post("/applications", (req,res) => {
+    if(!req.body.company || !req.body.position || !req.body.status){
+        return res.status(400).json ({
+            message: "Company, Position, Status are Required"
+        });
+    }
+    if(typeof req.body.company != "string" ||
+       typeof req.body.position != "string" ||
+       typeof req.body.status != "string"
+    ){
+        return res.status(400).json({
+            message: "Company, Position, Status must be Strings"
+        });
+    }
+    if(req.body.company.trim() === "" ||
+        req.body.position.trim() === "" ||
+       req.body.status.trim() === ""
+    ){
+        return res.status(400).json({
+            message: "Fields cannot be Empty"
+        });
+    }
+
+
     const application: Application = {
         id: nexId,
         company: req.body.company,
@@ -36,7 +59,7 @@ app.post("/applications", (req,res) => {
 
     res.status(201).json ({
         message: "Application Created Successfully",
-        applications:[]
+        applications:application
 
     });
 
@@ -58,6 +81,25 @@ app.put("/applications/:id", (req,res) =>{
         message: "Application Created Successfully",
         application: application
     })
+
+});
+
+app.delete("/applications/:id", (req,res) => {
+    const id = Number(req.params.id);
+
+    const index = applications.findIndex((app) => app.id === id);
+    
+    if(index === -1){
+        return res.status(404).json({
+            message: "Application Not Found" 
+        })
+    }
+    applications.splice(index,1);
+
+    res.status(200).json ({
+        message: "Application Deleted Successfully"
+    });
+
 
 });
 
