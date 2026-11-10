@@ -1,6 +1,6 @@
 import express from "express";
 
-const app = express();
+export const app = express();
 
 interface Application {
     id: number,
@@ -10,8 +10,6 @@ interface Application {
 }
 
 const validStatus = ["Applied", "Screening", "Assessment", "Interview", "Offer", "Rejected", "Withdrawn"];
-
-const PORT = 3000;
 
 let applications: Application[] = [];
 let nexId = 1;
@@ -149,8 +147,4 @@ app.delete("/applications/:id", (req, res) => {
 
 });
 
-
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
 
