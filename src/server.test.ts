@@ -1,13 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
-import {app} from "./server.js";
+import {app, resetApplications} from "./server.js";
 
 beforeEach(async () => {
-    const response = await request(app).get("/applications");
-
-    for(const application of response.body.applications) {
-        await request(app).delete(`/applications/${application.id}`);
-    }
+    resetApplications();
 });
 
 describe("GET/applications", () =>{

@@ -14,6 +14,10 @@ const validStatus = ["Applied", "Screening", "Assessment", "Interview", "Offer",
 let applications: Application[] = [];
 let nexId = 1;
 
+export function resetApplications(): void{
+    applications = [];
+    nexId = 1;
+}
 app.use(express.json());
 
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
