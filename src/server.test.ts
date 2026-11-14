@@ -3,7 +3,7 @@ import request from "supertest";
 import {app, resetApplications} from "./server.js";
 
 beforeEach(async () => {
-    resetApplications();
+    await resetApplications();
 });
 
 describe("GET/applications", () =>{
