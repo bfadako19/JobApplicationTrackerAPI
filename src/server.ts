@@ -28,6 +28,21 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 app.get("/applications", async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
+    const status = req.query.status;
+
+    if (status !== undefined && typeof status !== "string") {
+        return res.status(400).json({
+            message: "Invalid status parameter"
+        });
+    }
+
+    const filterStatus = typeof status === "string" ? status.trim() : undefined;
+
+    if (filterStatus !== undefined && !validStatus.includes(filterStatus)) {
+        return res.status(400).json({
+            message: "Invalid application status"
+        });
+    }
 
     if (!Number.isInteger(page) || page < 1 ||
         !Number.isInteger(limit) || limit < 1 || limit > 100) {
@@ -37,13 +52,23 @@ app.get("/applications", async (req, res) => {
     }
     const offset = (page - 1) * limit;
     try {
-        const result = await pool.query(
-            "SELECT * FROM applications ORDER BY id ASC LIMIT $1 OFFSET $2",
-            [limit, offset]
-        );
-        const countResult = await pool.query(
-            "SELECT COUNT(*) FROM applications"
-        );
+        const result = filterStatus
+            ? await pool.query(
+                "SELECT * FROM applications WHERE status = $1 ORDER BY id ASC LIMIT $2 OFFSET $3",
+                [filterStatus, limit, offset]
+            )
+            : await pool.query(
+                "SELECT * FROM applications ORDER BY id ASC LIMIT $1 OFFSET $2",
+                [limit, offset]
+            );
+        const countResult = filterStatus
+            ? await pool.query(
+                "SELECT COUNT(*) FROM applications WHERE status = $1",
+                [filterStatus]
+            )
+            : await pool.query(
+                "SELECT COUNT(*) FROM applications"
+            );
 
         const totalApplications = Number(countResult.rows[0].count);
         const totalPages = Math.ceil(totalApplications / limit);

@@ -14,6 +14,31 @@ describe("GET/applications", () =>{
         expect(response.body).toHaveProperty("applications");
         expect(response.body.applications).toEqual([]);
     });
+    it("Should Filter Applications By Status", async () => {
+    await request(app)
+        .post("/applications")
+        .send({
+            company: "Google",
+            position: "Software Engineer",
+            status: "Interview"
+        });
+
+    await request(app)
+        .post("/applications")
+        .send({
+            company: "Amazon",
+            position: "Developer",
+            status: "Applied"
+        });
+
+    const response = await request(app)
+        .get("/applications?status=Interview&page=1&limit=10");
+
+    expect(response.status).toBe(200);
+    expect(response.body.applications).toHaveLength(1);
+    expect(response.body.applications[0].company).toBe("Google");
+    expect(response.body.applications[0].status).toBe("Interview");
+});
 });
 
 describe("POST/application", () =>{
