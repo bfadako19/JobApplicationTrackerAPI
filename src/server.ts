@@ -1,13 +1,21 @@
 import express from "express";
 import { pool } from "./db.js";
+import { authRouter } from "./auth.js";
+import { authenticateToken } from "./authMiddleware.js";
 
 export const app = express();
+
+app.use(express.json());
+app.use("/auth", authRouter);
 
 const validStatus = ["Applied", "Screening", "Assessment", "Interview", "Offer", "Rejected", "Withdrawn"];
 
 
 export async function resetApplications(): Promise<void> {
     await pool.query("TRUNCATE TABLE applications RESTART IDENTITY");
+}
+export async function resetUsers(): Promise<void> {
+    await pool.query("TRUNCATE TABLE users RESTART IDENTITY CASCADE");
 }
 
 app.use(express.json());
@@ -25,7 +33,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
         message: "Internal Server Error"
     });
 });
-app.get("/applications", async (req, res) => {
+app.get("/applications", authenticateToken, async (req, res) => {
     const page = Number(req.query.page) || 1;
     const limit = Number(req.query.limit) || 10;
     const status = req.query.status;
@@ -51,23 +59,25 @@ app.get("/applications", async (req, res) => {
         });
     }
     const offset = (page - 1) * limit;
+    const userId = (req as express.Request & { userId?: number }).userId;
     try {
         const result = filterStatus
             ? await pool.query(
-                "SELECT * FROM applications WHERE status = $1 ORDER BY id ASC LIMIT $2 OFFSET $3",
-                [filterStatus, limit, offset]
+                "SELECT * FROM applications WHERE user_id = $1 AND status = $2 ORDER BY id ASC LIMIT $3 OFFSET $4",
+                [userId, filterStatus, limit, offset]
             )
             : await pool.query(
-                "SELECT * FROM applications ORDER BY id ASC LIMIT $1 OFFSET $2",
-                [limit, offset]
+                "SELECT * FROM applications WHERE user_id = $1 ORDER BY id ASC LIMIT $2 OFFSET $3",
+                [userId, limit, offset]
             );
         const countResult = filterStatus
             ? await pool.query(
-                "SELECT COUNT(*) FROM applications WHERE status = $1",
-                [filterStatus]
+                "SELECT COUNT(*) FROM applications WHERE user_id = $1 AND status = $2",
+                [userId, filterStatus]
             )
             : await pool.query(
-                "SELECT COUNT(*) FROM applications"
+                "SELECT COUNT(*) FROM applications WHERE user_id = $1",
+                [userId]
             );
 
         const totalApplications = Number(countResult.rows[0].count);
@@ -90,7 +100,7 @@ app.get("/applications", async (req, res) => {
     }
 });
 
-app.post("/applications", async (req, res) => {
+app.post("/applications", authenticateToken, async (req, res) => {
     if (!req.body || !req.body.company || !req.body.position || !req.body.status) {
         return res.status(400).json({
             message: "Company, Position, Status are Required"
@@ -119,11 +129,11 @@ app.post("/applications", async (req, res) => {
 
     }
 
-
+    const userId = (req as express.Request & { userId?: number }).userId;
     try {
         const result = await pool.query(
-            "INSERT INTO applications (company, position, status) VALUES ($1, $2, $3) RETURNING *",
-            [req.body.company, req.body.position, req.body.status]
+            "INSERT INTO applications (company, position, status, user_id) VALUES ($1, $2, $3, $4) RETURNING *",
+            [req.body.company, req.body.position, req.body.status, userId]
         );
 
         res.status(201).json({
@@ -140,7 +150,7 @@ app.post("/applications", async (req, res) => {
 
 });
 
-app.put("/applications/:id", async (req, res) => {
+app.put("/applications/:id", authenticateToken, async (req, res) => {
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
@@ -160,11 +170,11 @@ app.put("/applications/:id", async (req, res) => {
             message: "Invalid Application Status"
         });
     }
-
+    const userId = (req as express.Request & { userId?: number }).userId;
     try {
         const result = await pool.query(
-            "UPDATE applications SET status = $1 WHERE id = $2 RETURNING *",
-            [req.body.status.trim(), id]
+            "UPDATE applications SET status = $1 WHERE id = $2 AND user_id = $3 RETURNING *",
+            [req.body.status.trim(), id, userId]
         );
 
         if (result.rows.length === 0) {
@@ -186,7 +196,7 @@ app.put("/applications/:id", async (req, res) => {
     }
 });
 
-app.delete("/applications/:id", async (req, res) => {
+app.delete("/applications/:id", authenticateToken, async (req, res) => {
     const id = Number(req.params.id);
 
     if (!Number.isInteger(id) || id <= 0) {
@@ -194,11 +204,11 @@ app.delete("/applications/:id", async (req, res) => {
             message: "Invalid Application ID"
         });
     }
-
+    const userId = (req as express.Request & { userId?: number }).userId;
     try {
         const result = await pool.query(
-            "DELETE FROM applications WHERE id = $1 RETURNING *",
-            [id]
+            "DELETE FROM applications WHERE id = $1 AND user_id = $2 RETURNING *",
+            [id, userId]
         );
 
         if (result.rows.length === 0) {
