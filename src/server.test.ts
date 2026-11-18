@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import { app, resetApplications, resetUsers } from "./server.js";
+import jwt from "jsonwebtoken";
 
 const getAuthToken = async () => {
     await request(app)
@@ -66,14 +67,78 @@ describe("GET/applications", () => {
         expect(response.body.applications[0].company).toBe("Google");
         expect(response.body.applications[0].status).toBe("Interview");
     });
+    it("Should Not Allow One User To See Another User's Applications", async () => {
+        const token1 = await getAuthToken();
+
+        const created = await request(app)
+            .post("/applications")
+            .set("Authorization", `Bearer ${token1}`)
+            .send({
+                company: "Google",
+                position: "Software Engineer",
+                status: "Applied"
+            });
+
+        await request(app)
+            .post("/auth/register")
+            .send({
+                email: "seconduser@example.com",
+                password: "password123"
+            });
+
+        const login = await request(app)
+            .post("/auth/login")
+            .send({
+                email: "seconduser@example.com",
+                password: "password123"
+            });
+
+        const token2 = login.body.token;
+        const response = await request(app)
+            .get("/applications")
+            .set("Authorization", `Bearer ${token2}`);
+
+        expect(response.status).toBe(200);
+        expect(response.body.applications).toHaveLength(0);
+    });
+    it("Should Reject Requests Without an Authentication Token", async () => {
+    const response = await request(app)
+        .get("/applications");
+
+    expect(response.status).toBe(401);
+    expect(response.body.message).toBe("Access token required");
+
+});
+it("Should Reject Invalid Authentication Tokens", async () => {
+    const response = await request(app)
+        .get("/applications")
+        .set("Authorization", "Bearer invalid-token");
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe("Invalid or expired token");
+});
+it("Should Reject Expired Authentication Tokens", async () => {
+    const token = jwt.sign(
+        { userId: 1 },
+        process.env.JWT_SECRET!,
+        { expiresIn: "-1s" }
+    );
+
+    const response = await request(app)
+        .get("/applications")
+        .set("Authorization", `Bearer ${token}`);
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toBe("Invalid or expired token");
+});
 });
 
 describe("POST/application", () => {
     it("Should Create a New Application", async () => {
         const token = await getAuthToken();
         const response = await request(app).post("/applications")
-        .set("Authorization", `Bearer ${token}`)
-        .send({
+            .set("Authorization", `Bearer ${token}`)
+            .send({
                 company: "Google",
                 position: "Software Engineer",
                 status: "Applied"
@@ -117,7 +182,7 @@ describe("POST/application", () => {
 
 describe("PUT/applications/:id", () => {
     it("Should Update an Application's Status", async () => {
-         const token = await getAuthToken();
+        const token = await getAuthToken();
         const created = await request(app)
             .post("/applications")
             .set("Authorization", `Bearer ${token}`)
@@ -131,7 +196,7 @@ describe("PUT/applications/:id", () => {
 
         const response = await request(app)
             .put(`/applications/${id}`)
-             .set("Authorization", `Bearer ${token}`)
+            .set("Authorization", `Bearer ${token}`)
             .send({
                 status: "Interview"
             });
@@ -186,6 +251,43 @@ describe("PUT/applications/:id", () => {
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Invalid Application Status");
     });
+    it("Should Not Allow One User To Update Another User's Application", async () => {
+        const token1 = await getAuthToken();
+
+        const created = await request(app)
+            .post("/applications")
+            .set("Authorization", `Bearer ${token1}`)
+            .send({
+                company: "Google",
+                position: "Software Engineer",
+                status: "Applied"
+            }); const id = created.body.applications.id;
+
+        await request(app)
+            .post("/auth/register")
+            .send({
+                email: "seconduser@example.com",
+                password: "password123"
+            });
+
+        const login = await request(app)
+            .post("/auth/login")
+            .send({
+                email: "seconduser@example.com",
+                password: "password123"
+            });
+
+        const token2 = login.body.token;
+        const response = await request(app)
+            .put(`/applications/${id}`)
+            .set("Authorization", `Bearer ${token2}`)
+            .send({
+                status: "Interview"
+            });
+
+        expect(response.status).toBe(404);
+        expect(response.body.message).toBe("Application Not Found");
+    });
 });
 
 describe("DELETE/applications/:id", () => {
@@ -229,6 +331,41 @@ describe("DELETE/applications/:id", () => {
         const response = await request(app)
             .delete("/applications/999")
             .set("Authorization", `Bearer ${token}`);;
+
+        expect(response.status).toBe(404);
+        expect(response.body.message).toBe("Application Not Found");
+    });
+    it("Should Not Allow One User To Delete Another User's Application", async () => {
+        const token1 = await getAuthToken();
+
+        const created = await request(app)
+            .post("/applications")
+            .set("Authorization", `Bearer ${token1}`)
+            .send({
+                company: "Google",
+                position: "Software Engineer",
+                status: "Applied"
+            });
+        const id = created.body.applications.id;
+
+        await request(app)
+            .post("/auth/register")
+            .send({
+                email: "seconduser@example.com",
+                password: "password123"
+            });
+
+        const login = await request(app)
+            .post("/auth/login")
+            .send({
+                email: "seconduser@example.com",
+                password: "password123"
+            });
+
+        const token2 = login.body.token;
+        const response = await request(app)
+            .delete(`/applications/${id}`)
+            .set("Authorization", `Bearer ${token2}`);
 
         expect(response.status).toBe(404);
         expect(response.body.message).toBe("Application Not Found");
